@@ -6,6 +6,8 @@
 *.yml text eol=lf
 *.md text eol=lf
 *.json text eol=lf
+*.txt text eol=lf
+*.py text eol=lf
 .gitattributes text eol=lf
 CMakeLists.txt text eol=lf
 .gitignore text eol=lf

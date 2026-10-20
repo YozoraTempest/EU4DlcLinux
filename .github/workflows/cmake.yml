@@ -21,8 +21,10 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Package
         run: cmake --install build --prefix output
+      - name: Create player ZIP
+        run: python3 tools/package-player.py
       - uses: actions/upload-artifact@v4
         with:
           name: eu4-dlc-linux-x86_64
-          path: output/
+          path: dist/*.zip
           if-no-files-found: error

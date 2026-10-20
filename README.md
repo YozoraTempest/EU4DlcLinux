@@ -4,6 +4,18 @@
 
 本项目基于 [anticitizn/creamlinux](https://github.com/anticitizn/creamlinux) 的 `b69b818691983df30b86341be3c8680973295c6d`，保留完整历史、MIT 许可证及第三方声明。上游说明文档保存在 [docs/UPSTREAM_README.md](docs/UPSTREAM_README.md)。
 
+## 玩家版
+
+玩家版压缩包为 `dist/EU4-1.37-Linux-玩家版.zip`，内含三个运行文件、简短的中文使用说明和合并的开源许可。解压后按 `使用说明.txt` 操作即可。
+
+已有 Linux 构建产物时，可用 Python 3 生成玩家包：
+
+```sh
+python3 tools/package-player.py
+```
+
+打包使用明确的五文件清单，包含源码目录中的启动脚本和配置，以及 `output/lib64Creamlinux.so`。CI 同样生成并上传玩家 ZIP。
+
 ## 补丁分析与迁移范围
 
 提供的 7z 中有 `cream_api.ini`、两个替换 Steam DLL、两个附带的 Steam DLL；配置中的 AppID 为 `236850`，`[dlc]` 有 88 项。文件内容符合 CreamAPI 的 Steam 配置形式，包名中的 ScreamAPI 不能作为其实际实现的依据。

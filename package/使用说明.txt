@@ -1,0 +1,18 @@
+EU4 1.37 Linux 玩家版
+
+适用：Steam 原生 Linux 版 EU4，x86_64（64 位）。
+
+安装：
+1. 在 Steam 中右键 EU4 → 管理 → 浏览本地文件。
+2. 将本包的 cream.sh、cream_api.ini、lib64Creamlinux.so
+   放进游戏根目录，与 eu4 文件放在一起。
+3. 打开 Steam → EU4 属性 → 启动选项，填写：
+
+   sh ./cream.sh %command%
+
+4. 从 Steam 启动游戏。
+
+卸载：清空上面的启动选项，再删除这三个补丁文件。
+
+游戏需要已安装对应的 DLC 数据文件，本包不含 DLC 资源。
+当前为测试版本，尚未完成 Linux 游戏实测。
