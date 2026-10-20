@@ -7,6 +7,8 @@
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "ext/ini.h"
+#include "src/config.hpp"
+#include <mutex>
 #include <string>
 #include <cassert>
 #include <vector>
@@ -22,7 +24,7 @@ using namespace std;
 #include <link.h>
 #include <stdio.h>
 
-vector<tuple<int, string>> dlcs;
+eu4dlc::DlcList dlcs;
 
 void* (*real_dlsym)(void *handle, const char *name);
 
@@ -44,16 +46,14 @@ public:
     bool BIsVACBanned() { return false; }
     int GetDLCCount() {
         spdlog::info("ISteamApps->GetDLCCount called PID {0}", getpid());
-        auto count = dlcs.size();
-        auto content = dlcs;
-        return dlcs.size();
+        return static_cast<int>(dlcs.size());
     }
     bool BIsDlcInstalled(AppId_t appID) {
         spdlog::info("ISteamApps->BIsDlcInstalled called");
         auto reslt = std::find_if(
             std::begin(dlcs),
             std::end(dlcs),
-            [&] (const tuple<int, string> a) { return std::get<0>(a) == appID; }) != std::end(dlcs);
+            [&] (const auto& a) { return std::get<0>(a) == appID; }) != std::end(dlcs);
         if (reslt) {
             spdlog::info("BIsDlcInstalled unlocked {}", appID);
             return true;
@@ -63,19 +63,7 @@ public:
     }
     bool BGetDLCDataByIndex(int iDLC, AppId_t* pAppID, bool* pbAvailable, char* pchName, int cchNameBufferSize) {
         spdlog::info("ISteamApps->BGetDLCDataByIndex called");
-        if ((size_t)iDLC >= dlcs.size()) {
-            return false;
-        }
-
-        *pAppID = std::get<0>(dlcs[iDLC]);
-        *pbAvailable = true;
-
-        const char* name = std::get<1>(dlcs[iDLC]).c_str();
-        size_t slen = std::min((size_t)cchNameBufferSize - 1, std::get<1>(dlcs[iDLC]).size());
-        memcpy((void*)pchName, (void*)name, slen);
-        *(pchName + slen) = 0x0;
-
-        return true;
+        return eu4dlc::copy_dlc_data(dlcs, iDLC, pAppID, pbAvailable, pchName, cchNameBufferSize);
     }
 
     const char* GetCurrentGameLanguage() { return real_steamApps->GetCurrentGameLanguage(); }
@@ -98,7 +86,7 @@ public:
             auto reslt = std::find_if(
                 std::begin(dlcs),
                 std::end(dlcs),
-                [&] (const tuple<int, string> a) { return std::get<0>(a) == appID; }) != std::end(dlcs);
+                [&] (const auto& a) { return std::get<0>(a) == appID; }) != std::end(dlcs);
             if (reslt) {
                 spdlog::info("BIsSubscribedApp unlocked {}", appID);
                 return true;
@@ -195,7 +183,7 @@ public:
         auto reslt = std::find_if(
             std::begin(dlcs),
             std::end(dlcs),
-            [&] (const tuple<int, string> a) { return std::get<0>(a) == appID; }) != std::end(dlcs);
+            [&] (const auto& a) { return std::get<0>(a) == appID; }) != std::end(dlcs);
         if (reslt) {
             spdlog::info("ISteamUser_UserHasLicenseForApp result: owned");
             return (EUserHasLicenseForAppResult)0;
@@ -251,6 +239,7 @@ public:
 static std::shared_ptr<Hookey_SteamApps_Class> steamapps_instance;
 
 ISteamApps* Hookey_SteamApps(ISteamApps* real_steamApps) {
+    if (real_steamApps == nullptr) return nullptr;
     if (steamapps_instance != NULL) {
         ISteamApps* ptraccess = steamapps_instance.get();
         auto debg = ptraccess->GetDLCCount();
@@ -266,6 +255,7 @@ ISteamApps* Hookey_SteamApps(ISteamApps* real_steamApps) {
 static std::shared_ptr<Hookey_SteamUser_Class> steamuser_instance;
 
 ISteamUser* Hookey_SteamUser(ISteamUser* real_steamUser) {
+    if (real_steamUser == nullptr) return nullptr;
     if (steamuser_instance != NULL) {
         return steamuser_instance.get();
     } else {
@@ -417,6 +407,7 @@ public:
 static std::shared_ptr<Hookey_SteamClient_Class> steamclient_instance;
 
 ISteamClient* Hookey_SteamClient(ISteamClient* real_steamClient) {
+    if (real_steamClient == nullptr) return nullptr;
     if (steamclient_instance != NULL) {
         return steamclient_instance.get();
     } else {
@@ -451,27 +442,29 @@ extern "C" void Steam_LogOn(HSteamUser hUser, HSteamPipe hSteamPipe, uint64 ulSt
     real(hUser, hSteamPipe, ulSteamID);
 }
 
-extern "C" bool SteamAPI_ISteamApps_BGetDLCDataByIndex(int iDLC, AppId_t* pAppID, bool* pbAvailable, char* pchName, int cchNameBufferSize) {
-        spdlog::info("SteamAPI_ISteamApps_BGetDLCDataByIndex called");
-        if ((size_t)iDLC >= dlcs.size()) {
-            return false;
-        }
+extern "C" bool SteamAPI_ISteamApps_BGetDLCDataByIndex(ISteamApps* self, int iDLC, AppId_t* pAppID, bool* pbAvailable, char* pchName, int cchNameBufferSize) {
+    return self && eu4dlc::copy_dlc_data(dlcs, iDLC, pAppID, pbAvailable, pchName, cchNameBufferSize);
+}
 
-        *pAppID = std::get<0>(dlcs[iDLC]);
-        *pbAvailable = true;
+extern "C" int SteamAPI_ISteamApps_GetDLCCount(ISteamApps* self) {
+    return self ? static_cast<int>(dlcs.size()) : 0;
+}
 
-        const char* name = std::get<1>(dlcs[iDLC]).c_str();
-        size_t slen = std::min((size_t)cchNameBufferSize - 1, std::get<1>(dlcs[iDLC]).size());
-        memcpy((void*)pchName, (void*)name, slen);
-        *(pchName + slen) = 0x0;
+extern "C" bool SteamAPI_ISteamApps_BIsDlcInstalled(ISteamApps* self, AppId_t appID) {
+    auto apps = Hookey_SteamApps(self);
+    return apps && apps->BIsDlcInstalled(appID);
+}
 
-        return true;
+extern "C" bool SteamAPI_ISteamApps_BIsSubscribedApp(ISteamApps* self, AppId_t appID) {
+    auto apps = Hookey_SteamApps(self);
+    return apps && apps->BIsSubscribedApp(appID);
 }
 
 extern "C" void* S_CALLTYPE SteamInternal_FindOrCreateUserInterface(HSteamUser hSteamUser, const char *pszVersion) {
     ensure_realdlsym();
     void* S_CALLTYPE (*real)(HSteamUser hSteamUser, const char *pszVersion);
     *(void**)(&real) = real_dlsym(RTLD_NEXT, "SteamInternal_FindOrCreateUserInterface");
+    if (!real || !pszVersion) return nullptr;
     spdlog::info("SteamInternal_FindOrCreateUserInterface called pszVersion: {}", pszVersion);
     // Steamapps Interface call is hooked here
     if (strstr(pszVersion, STEAMAPPS_INTERFACE_VERSION_N008) == pszVersion) {
@@ -499,6 +492,7 @@ extern "C" void* S_CALLTYPE SteamInternal_CreateInterface(const char *pszVersion
     ensure_realdlsym();
      void* S_CALLTYPE (*real)(const char *pszVersion);
     *(void**)(&real) = real_dlsym(RTLD_NEXT, "SteamInternal_CreateInterface");
+    if (!real || !pszVersion) return nullptr;
     spdlog::info("SteamInternal_CreateInterface called pszVersion: {}", pszVersion);
 
     // Steamapps Interface call is hooked here
@@ -594,37 +588,36 @@ int printdliter(struct dl_phdr_info *info, size_t size, void *data) {
 extern "C" bool SteamAPI_Init()
 {
     ensure_realdlsym();
-    std::string creaminipath = "cream_api.ini";
+    static std::once_flag config_once;
+    static bool config_valid = false;
     // for developers: enable these 2 lines if you want to log output to a file
     // auto logger = std::make_shared<spdlog::sinks::basic_file_sink_mt>("creamlinux_log.txt", true);
     // spdlog::default_logger().get()->sinks().push_back(logger);
 
-    auto env = std::getenv("CREAM_CONFIG_PATH");
-    //f env exists, use it
-    if (env != NULL) {
-        creaminipath = env;
-    }
-    
-    spdlog::info("Reading config from {}", creaminipath);
-    mINI::INIFile file(creaminipath);
-
-    // Open ini file
-    file.read(ini);
-    // Find dlc's and add to vector
-    for (pair<string,string> entry : ini["dlc"]) {
-        auto dlctuple = std::make_tuple(stoi(entry.first), entry.second);
-        dlcs.push_back(dlctuple);
-        spdlog::info("Added dlc with id: {0}, name: {1}", entry.first, entry.second);
-    }
+    std::call_once(config_once, [] {
+        const auto env = std::getenv("CREAM_CONFIG_PATH");
+        const std::string path = env && *env ? env : "cream_api.ini";
+        try {
+            auto config = eu4dlc::read_config(path);
+            ini = std::move(config.ini);
+            dlcs = std::move(config.dlcs);
+            config_valid = true;
+            spdlog::info("Loaded {} DLC entries from {}", dlcs.size(), path);
+        } catch (const std::exception& error) {
+            spdlog::error("Configuration error: {}", error.what());
+        }
+    });
+    if (!config_valid) return false;
     spdlog::info("SteamAPI_Init called in PID {0}", getpid());
     // finish api call
     // the spaghetti below this comment is calling the original Init function
     // can probably be simplified but i'm no c++ expert 
     bool (*real)();
+    dlerror();
     *(void**)(&real) = real_dlsym(RTLD_NEXT, "SteamAPI_Init");
     char* errstr = dlerror();
-    if (errstr != NULL) {
-        spdlog::error("SteamAPI_Init failed; A dynamic linking error occurred: {0}", errstr);
+    if (errstr != NULL || real == nullptr) {
+        spdlog::error("SteamAPI_Init failed; A dynamic linking error occurred: {0}", errstr ? errstr : "symbol not found");
         spdlog::error("Listing open libraries.");
         dl_iterate_phdr(printdliter, NULL);
         return false;
@@ -650,6 +643,16 @@ extern "C" void *dlsym(void *handle, const char *name)
     // filelog->info("modified dlsym called with {0}", name);
 
     ensure_realdlsym();
+
+    if (handle != RTLD_NEXT) {
+#define DLC_HOOK(symbol) if (!strcmp(name, #symbol)) return reinterpret_cast<void*>(symbol)
+        DLC_HOOK(SteamInternal_FindOrCreateUserInterface);
+        DLC_HOOK(SteamAPI_ISteamApps_GetDLCCount);
+        DLC_HOOK(SteamAPI_ISteamApps_BGetDLCDataByIndex);
+        DLC_HOOK(SteamAPI_ISteamApps_BIsDlcInstalled);
+        DLC_HOOK(SteamAPI_ISteamApps_BIsSubscribedApp);
+#undef DLC_HOOK
+    }
 
     /* my target binary is even asking for dlsym() via dlsym()... */
     if (!strcmp(name,"dlsym")) 

@@ -1,0 +1,47 @@
+{
+  "archive_name": "1.37dlc破解补丁ScreamAPI（Steam学习版用）.7z",
+  "archive_size": 574600,
+  "archive_sha256": "8ec39ef984bcd1e9053615a7a9b5bcbfdf176906695ac0cec85df4e6bf9153f3",
+  "steam_appid": 236850,
+  "dlc_count": 88,
+  "files": [
+    {
+      "name": "cream_api.ini",
+      "size": 8198,
+      "sha256": "aed46f2a1f313ce0e2b4248763083faa0e02ae4a2f5468f83f5941db12438f22"
+    },
+    {
+      "name": "steam_api.dll",
+      "size": 737280,
+      "sha256": "a34e7ef464373898fa659294eef80ab554417c8ae6fef860f03fb7f5ae6bb698",
+      "format": "PE",
+      "machine": "0x14c",
+      "references_cream_api_ini": true
+    },
+    {
+      "name": "steam_api64.dll",
+      "size": 834560,
+      "sha256": "f428bfe07eaf1e6f6fa1f28b6a787f93794bc5f97e8609645571b8bdc10d5385",
+      "format": "PE",
+      "machine": "0x8664",
+      "references_cream_api_ini": true
+    },
+    {
+      "name": "steam_api64_o.dll",
+      "size": 295336,
+      "sha256": "4df999c0c8cb12589f0864d52be5d4c775577aeb27fee28b49b188f9ba083eea",
+      "format": "PE",
+      "machine": "0x8664",
+      "references_cream_api_ini": false
+    },
+    {
+      "name": "steam_api64_org_launcher.dll",
+      "size": 250656,
+      "sha256": "b8246e1a629b945fe526b24c3e4f002c4f6eb86aa1b5ed9744399f22a0d2ca9f",
+      "format": "PE",
+      "machine": "0x8664",
+      "references_cream_api_ini": false
+    }
+  ],
+  "analysis": "Static inspection only. No supplied DLL was executed. Configuration comments were treated as data, not as user instructions."
+}

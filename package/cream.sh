@@ -1,28 +1,50 @@
-#!/bin/bash
-copy_file() {
-    cp "$1" "$2" || { echo "Error: Failed to copy $1 to $2"; exit 1; }
-}
+#!/bin/sh
+set -eu
 
-LIBSTEAM_API_DIR=$(find . -name "libsteam_api.so" -printf "%h\n" | head -n 1)
-[ -z "$LIBSTEAM_API_DIR" ] && { echo "Error: libsteam_api.so not found."; exit 1; }
-if [ ! -z "$CREAM_CONFIG_PATH" ]; then
-    if [ ! -f "$CREAM_CONFIG_PATH/cream_api.ini" ]; then
-        echo "Error: cream_api.ini not found in CREAM_CONFIG_PATH."; exit 1;
-    fi
+fail() { printf '%s\n' "EU4DlcLinux: $*" >&2; exit 1; }
+[ "$#" -gt 0 ] || fail 'Usage: sh /path/to/cream.sh command [arguments...]'
+[ "$(uname -s)" = Linux ] || fail 'This launcher requires native Linux.'
+[ "$(uname -m)" = x86_64 ] || fail 'This package requires x86_64.'
+
+root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+config=${CREAM_CONFIG_PATH:-"$root/cream_api.ini"}
+[ -f "$config" ] || fail "Configuration file not found: $config"
+config=$(CDPATH= cd -- "$(dirname -- "$config")" && printf '%s/%s\n' "$(pwd -P)" "$(basename -- "$config")")
+library="$root/lib64Creamlinux.so"
+[ -f "$library" ] || fail "Library not found: $library. Run sh ./build.sh first."
+
+if [ -n "${CREAM_STEAM_API:-}" ]; then
+    steam_api=$CREAM_STEAM_API
+elif [ -f "$root/libsteam_api.so" ]; then
+    steam_api="$root/libsteam_api.so"
 else
-    if [ ! -f "$PWD/cream_api.ini" ]; then
-        echo "Error: cream_api.ini not found in the current working directory."; exit 1;
-    fi
+    candidates=$(find "$root" -type f -name libsteam_api.so -print)
+    [ -n "$candidates" ] || fail "libsteam_api.so not found under: $root"
+    [ "$(printf '%s\n' "$candidates" | wc -l)" -eq 1 ] || fail 'Multiple Steam libraries found; set CREAM_STEAM_API to the full file path.'
+    steam_api=$candidates
 fi
-if [ -z "$CREAM_CONFIG_PATH" ] && [ "$LIBSTEAM_API_DIR" != "$PWD" ]; then
-    export CREAM_CONFIG_PATH="$PWD/cream_api.ini"
-fi
+[ -f "$steam_api" ] || fail "Steam library not found: $steam_api"
 
-copy_file "$PWD/lib32Creamlinux.so" /tmp/lib32Creamlinux.so
-copy_file "$PWD/lib64Creamlinux.so" /tmp/lib64Creamlinux.so
-copy_file "$LIBSTEAM_API_DIR/libsteam_api.so" /tmp/libsteam_api.so
+check_elf64() {
+    magic=$(od -An -tx1 -N5 "$1" | tr -d ' \n')
+    machine=$(od -An -tx1 -j18 -N2 "$1" | tr -d ' \n')
+    [ "$magic" = 7f454c4602 ] && [ "$machine" = 3e00 ] || fail "Expected an x86_64 ELF library: $1"
+}
+check_elf64 "$library"
+check_elf64 "$steam_api"
 
-LD_PRELOAD="$LD_PRELOAD /tmp/lib64Creamlinux.so /tmp/lib32Creamlinux.so /tmp/libsteam_api.so" "$@"
-EXITCODE=$?
-rm -f /tmp/lib32Creamlinux.so /tmp/lib64Creamlinux.so /tmp/libsteam_api.so
-exit $EXITCODE
+# LD_PRELOAD splits paths at whitespace. A private path also isolates launches.
+runtime=$(mktemp -d /tmp/eu4-dlc.XXXXXXXX)
+cleanup() { rm -rf -- "$runtime"; }
+trap cleanup 0
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+cp -- "$library" "$runtime/lib64Creamlinux.so"
+cp -- "$steam_api" "$runtime/libsteam_api.so"
+export CREAM_CONFIG_PATH="$config"
+preload="$runtime/lib64Creamlinux.so:$runtime/libsteam_api.so${LD_PRELOAD:+:$LD_PRELOAD}"
+set +e
+LD_PRELOAD="$preload" "$@"
+status=$?
+exit "$status"

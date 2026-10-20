@@ -1,121 +1,75 @@
-# Creamlinux
-A CreamAPI clone for Linux.
+# EU4DlcLinux
 
-Since 20PercentRendered has archived the repo, I have decided to fork and support it as far as I can.
+面向 Steam 原生 Linux 版 Europa Universalis IV 1.37 的 DLC 接口适配项目，目标平台是 **x86_64 + glibc**。当前为 0.1.0 开发版：已完成交叉编译与部分本机测试，尚未完成 Linux 动态加载测试和 EU4 游戏实测。
 
-## Support
-Creamlinux *should* work on most Steam games. It does not work with Proton or Wine - use SmokeAPI or other alternatives made specifically for Windows instead.
-The following games have been tested and definitely confirmed to work:
+本项目基于 [anticitizn/creamlinux](https://github.com/anticitizn/creamlinux) 的 `b69b818691983df30b86341be3c8680973295c6d`，保留完整历史、MIT 许可证及第三方声明。上游说明文档保存在 [docs/UPSTREAM_README.md](docs/UPSTREAM_README.md)。
 
- - Stellaris
- - Hearts Of Iron IV
- - Europa Universalis IV
- - Crusader Kings II
- - Crusader Kings III
- - Victoria 3
- - PAYDAY 2
+## 补丁分析与迁移范围
 
-## Unsupported Games
-The following games have been tested and do not currently work with creamlinux, feel free to try some of the alternatives listed at the bottom of this readme:
-- Cities Skylines 2
-- European Truck Simulator / American Truck Simulator
+提供的 7z 中有 `cream_api.ini`、两个替换 Steam DLL、两个附带的 Steam DLL；配置中的 AppID 为 `236850`，`[dlc]` 有 88 项。文件内容符合 CreamAPI 的 Steam 配置形式，包名中的 ScreamAPI 不能作为其实际实现的依据。
 
-## Installation
-The easiest way of installing is using **Tickbase**'s Application: https://github.com/Novattz/creamlinux-installer
-It automatically downloads and sets up creamlinux for Steam games that you choose, as well as fetching all DLC IDs for it. Keep in mind that you will still need the actual, **up-to-date** DLC files in the game. The install script and creamlinux do **not** automatically download any game content. You will have to run it again if new DLCs are released for a game.
+本项目提取这 88 条 DLC ID 和名称，使用现有 Linux 接口实现生成 `lib64Creamlinux.so`。原始 DLL 为 Windows PE 文件，未执行，也未作为 Linux 产物分发。
 
-If the script does not work for you, you can install `creamlinux` manually. Beware that you will have to manually update `cream_api.ini` to contain the DLC IDs for the games that you choose.
+迁移保留显式 DLC 清单模式。`orgapi`、`orgapi64` 等 Windows DLL 路径没有 Linux 对应关系；其余 Windows 平台选项也未实现逐项等价。详情见 [迁移记录](docs/MIGRATION.md) 与 [静态检查清单](docs/archive-manifest.json)。
 
-## Manual Installation
-0. You will need the actual, **up-to-date** DLC files in the game. Creamlinux does **not** auto-download anything
-1. Download the [latest](https://github.com/anticitizn/creamlinux/releases/latest/download/creamlinux.zip) release of Creamlinux
-2. Unzip it and copy the files to the game's directory
-3. Set the game's steam launch params to `sh ./cream.sh %command%`
-4. Launch the game and have fun!
+## 构建
 
-The list of "supported" DLCs is stored in `cream_api.ini`. If you want to test creamlinux on a new game or a new DLC has just come out, you can add more entries here manually.
+需要 Linux x86_64 环境、C++14 编译器、CMake 3.20+ 和系统构建工具。项目随附 mINI、spdlog 和现有 Steamworks 头文件，构建过程不下载依赖。
 
-If that doesn't work, please check the Troubleshooting section below.
+Ubuntu / Debian 示例：
 
-## Building from source
-0. Ensure you have all build dependencies installed:
-- On Ubuntu: `build-essential` `gcc-multilib` `g++-multilib` `cmake` `git`
-- On Arch: `base-devel` `multilib-devel` `cmake` `git`
-
-1. Clone the project:
-```
-git clone https://github.com/anticitizn/creamlinux
-```
-2. Build the project:
-```
+```sh
+sudo apt-get install build-essential cmake
 sh ./build.sh
 ```
 
-3. Copy `output` folder contents to the game folder
-4. Set the game's steam launch params to `sh ./cream.sh %command%`
+脚本依次配置、编译、执行测试并将产物安装到 `output/`。也可以分别执行：
 
-Alternatively, if you have Docker installed, you can just run `docker compose up`
-
-# Troubleshooting
-## Red triangles next to DLCs
-This is normal. The DLCs should still work.
-
-![Red triangles next to DLCs are normal](https://cdn.discordapp.com/attachments/663174968791662594/1093109044295766106/image.png)
-
-## DLCs don't work
-- Have you made sure to download the latest version of the DLC files? Sometimes unrelated patches or updates to the game will modify some DLC files, and creamlinux is currently somewhat sensitive to outdated files.
-- Do you have Steam installed from a flatpak? Creamlinux doesn't play nicely with it, please try a native version if possible
-
-## Game not starting after enabling creamlinux
-Are you sure that the creamlinux files are at the game's root directory and not in a subfolder?
-
-Try setting the executable flag of the `cream.sh` script (it should be set already, but just in case):
-```
-chmod +x cream.sh
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+cmake --install build --prefix "$PWD/output"
 ```
 
-## It doesn't work with Proton or Wine
-Creamlinux is specifically made for native Linux games. If you are using a compatibility layer, use alternatives made specifically for Windows (e.g. SmokeAPI, regular CreamAPI or whatever).
-[AutoCreamAPI](https://github.com/MoebiusZero/AutoCreamAPI) has worked well for some people, keep in mind that you need to install .NetCore3 on your Wine/Proton instance first.
+已有 Docker 时可运行 `docker compose run --rm creamlinux-build`。CI 配置会在 Ubuntu 22.04 上构建、测试并上传构建产物；本地建仓尚未触发远程 CI。
 
-## Nothing helped!
-Please collect a log using the instructions below as well as an overview of the game's directory using `ls -lh; ls -lh */`, then post an issue describing your situation [here](https://github.com/anticitizn/creamlinux/issues/new).
+## 安装与运行
 
-## Gathering logs
-If using a KDE environment, set your game launch options to this:
+运行依赖 Steam Linux 客户端、原生 Linux 游戏目录中的原版 `libsteam_api.so` 和实际 DLC 数据文件。这份补丁不包含 DLC 资源，也不实现完整 Steam 模拟器。
+
+1. 将 `output/` 中的 `lib64Creamlinux.so`、`cream.sh`、`cream_api.ini` 复制到原生 Linux 游戏根目录。
+2. 在 Steam 中确认游戏使用原生 Linux 版本。
+3. 设置启动选项：
+
+```text
+sh ./cream.sh %command%
 ```
-konsole --hold -e sh ./cream.sh %command%
+
+也可以在游戏目录中直接运行（Steam 客户端需已启动）：
+
+```sh
+sh ./cream.sh ./eu4
 ```
-Or if you are using Gnome environment, you can set your launch options to this:
+
+启动脚本以自身目录定位配置和共享库，保留游戏参数与退出码。它将两个库复制到每次启动独立的 `/tmp/eu4-dlc.*` 目录后预加载，结束时清理该目录；这样支持含空格的游戏路径，并避免固定临时文件名冲突。强制终止或断电可能留下临时目录。
+
+`CREAM_CONFIG_PATH` 表示 **INI 文件完整路径**。`CREAM_STEAM_API` 表示 **原版 Steam 共享库文件完整路径**。游戏根目录没有 Steam 库时会递归查找；找到多个候选时要求显式指定。
+
+```sh
+CREAM_CONFIG_PATH="/path with spaces/cream_api.ini" \
+CREAM_STEAM_API="/path/to/game/libsteam_api.so" \
+sh ./cream.sh ./eu4
 ```
-gnome-terminal -- sh -c "./cream.sh %command%; exec bash"
-```
-If using neither, install `konsole` and follow the KDE step.
-Then launch the game (skip any launchers like the Paradox launcher if possible, they interfere with the logging). Wait for the game to load, close it, then copy and paste the contents of the terminal.
 
-# Advanced 
-If you want to load `cream_api.ini` from a specific path, specify the path with `CREAM_CONFIG_PATH` in the launch options.
+脚本会检查两个库是否为 x86_64 ELF。移除 Steam 启动选项即可停止注入。
 
-# Alternatives
-If creamlinux doesn't work for your game, there are a couple of known alternatives for Linux. I provide no guarantees for their legitimacy and functionality, but some people seem to be happy with them.
-- [StellarKey](https://0xacab.org/stellarkey/stellarkey)
-- [CreamAPI (Windows, MacOS, Linux)](https://cs.rin.ru/forum/viewtopic.php?f=29&t=70576)
-- [AutoCreamAPI for Proton](https://github.com/MoebiusZero/AutoCreamAPI) (.NetCore3 required)
+## 验证状态
 
-# AI-generated Contributions
-Please, do not submit clearly AI-generated pull requests. I will not approve them. You are of course free to fork creamlinux and do whatever you want with it, but as the maintainer of this fork I do not feel comfortable with providing software to unsuspecting users that is not at least verified by me personally (and preferably by another competent person, namely the PR submitter). That being said, I don't care if you use LLMs in some way, as long as your contribution is not obviously generated and you feel confident in understanding (and explaining) both the changes themselves and the necessity behind them.
+详见 [docs/VALIDATION.md](docs/VALIDATION.md)。当前已通过 Windows 上的 CMake → Zig Linux 交叉编译、配置及缓冲区测试、Git Bash 下的启动脚本测试。Linux 动态加载测试程序已编译，尚未执行；EU4 1.37 游戏运行、Steam 集成、启动器、多人成就等行为尚未实测。
 
-# Credits
-The many contributors who submitted bugfixes, tested games and updated the list of DLC IDs :)
+仓库中的测试覆盖 CRLF 配置、88 项预置清单、无效 AppID、索引和缓冲区边界，以及启动脚本路径、参数、退出码、清理、平台检查和共享库选择。Linux 接口测试另覆盖原函数转发、重复初始化、虚函数接口、flat API 和 `dlsym` 路径。
 
-[Novattz](https://github.com/Novattz) for [creamlinux-installer](https://github.com/Novattz/creamlinux-installer)
+## 来源与许可
 
-[Rosentti](https://github.com/Rosentti) for originally creating and maintaining this project
-
-[pulzed](https://github.com/pulzed) for [mINI](https://github.com/pulzed/mINI)(ini.h)
-
-[Valve](https://www.valvesoftware.com/) for [steamworks](https://partner.steamgames.com/)
-
-[gabime](https://github.com/gabime) for [spdlog](https://github.com/gabime/spdlog)
-
-[goddeysfreya](https://github.com/goddessfreya) for [hookey](https://github.com/goddessfreya/hookey)
+见 [LICENSE](LICENSE) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。Steamworks 头文件保留 Valve 原始声明，并未由本项目重新许可。

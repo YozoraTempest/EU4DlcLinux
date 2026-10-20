@@ -5,3 +5,12 @@ lib/
 output
 .idea
 cmake-build-debug/
+
+__pycache__/
+*.pyc
+*.7z
+*.dll
+*.zip
+*.so
+config-test.ini
+dist/
