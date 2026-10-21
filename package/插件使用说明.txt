@@ -1,0 +1,17 @@
+EU4DlcLinux — Augustus 插件版
+
+适用：Steam 原生 Linux 版 EU4 1.37，x86_64，Steam Linux Runtime 3.0 (sniper)。
+先将 Augustus-Launcher 解压到游戏根目录，再将本包解压到同一目录。
+之后按 Augustus-Launcher 的方式启动，在 P 社启动器中点击开始游戏。
+Steam 游戏属性 → 兼容性，选择 Steam Linux Runtime 3.0 (sniper)。
+
+插件：plugin/lib64Creamlinux.so
+配置：plugin/creamlinux/cream_api.ini
+
+不需要运行 cream.sh，也不需要增加其他启动参数。
+插件会自行查找配套配置，并使用游戏自带的原版 libsteam_api.so。
+CREAM_CONFIG_PATH 和 CREAM_STEAM_API 的显式设置仍然有效。
+本包不包含游戏或 DLC 数据文件。
+
+停用：将 plugin/lib64Creamlinux.so 改名为 lib64Creamlinux.so.disabled。
+恢复：将文件名改回。配置可以继续保留。

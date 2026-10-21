@@ -8,6 +8,7 @@
 #include "spdlog/sinks/basic_file_sink.h"
 #include "ext/ini.h"
 #include "src/config.hpp"
+#include "src/runtime.hpp"
 #include <mutex>
 #include <string>
 #include <cassert>
@@ -429,7 +430,8 @@ ISteamClient* Hookey_SteamClient(ISteamClient* real_steamClient) {
 extern "C" void* CreateInterface(const char *pName, int *pReturnCode) {
     ensure_realdlsym();
     void *S_CALLTYPE (*real)(const char *pName, int *pReturnCode);
-    *(void**)(&real) = real_dlsym(RTLD_NEXT, "CreateInterface");
+    *(void**)(&real) = eu4dlc::original_symbol("CreateInterface");
+    if (!real) return nullptr;
     spdlog::info("CreateInterface called pszVersion: {}", pName);
     return real(pName, pReturnCode);
 }
@@ -437,7 +439,8 @@ extern "C" void* CreateInterface(const char *pName, int *pReturnCode) {
 extern "C" void Steam_LogOn(HSteamUser hUser, HSteamPipe hSteamPipe, uint64 ulSteamID) {
     ensure_realdlsym();
     void* S_CALLTYPE (*real)(HSteamUser hUser, HSteamPipe hSteamPipe, uint64 ulSteamID);
-    *(void**)(&real) = real_dlsym(RTLD_NEXT, "SteamAPI_LogOn");
+    *(void**)(&real) = eu4dlc::original_symbol("SteamAPI_LogOn");
+    if (!real) return;
     spdlog::info("SteamAPI_LogOn called {0} {1} {2}",hUser, hSteamPipe, ulSteamID );
     real(hUser, hSteamPipe, ulSteamID);
 }
@@ -463,7 +466,7 @@ extern "C" bool SteamAPI_ISteamApps_BIsSubscribedApp(ISteamApps* self, AppId_t a
 extern "C" void* S_CALLTYPE SteamInternal_FindOrCreateUserInterface(HSteamUser hSteamUser, const char *pszVersion) {
     ensure_realdlsym();
     void* S_CALLTYPE (*real)(HSteamUser hSteamUser, const char *pszVersion);
-    *(void**)(&real) = real_dlsym(RTLD_NEXT, "SteamInternal_FindOrCreateUserInterface");
+    *(void**)(&real) = eu4dlc::original_symbol("SteamInternal_FindOrCreateUserInterface");
     if (!real || !pszVersion) return nullptr;
     spdlog::info("SteamInternal_FindOrCreateUserInterface called pszVersion: {}", pszVersion);
     // Steamapps Interface call is hooked here
@@ -491,7 +494,7 @@ extern "C" void* S_CALLTYPE SteamInternal_FindOrCreateUserInterface(HSteamUser h
 extern "C" void* S_CALLTYPE SteamInternal_CreateInterface(const char *pszVersion) {
     ensure_realdlsym();
      void* S_CALLTYPE (*real)(const char *pszVersion);
-    *(void**)(&real) = real_dlsym(RTLD_NEXT, "SteamInternal_CreateInterface");
+    *(void**)(&real) = eu4dlc::original_symbol("SteamInternal_CreateInterface");
     if (!real || !pszVersion) return nullptr;
     spdlog::info("SteamInternal_CreateInterface called pszVersion: {}", pszVersion);
 
@@ -539,7 +542,8 @@ extern "C" ISteamApps *S_CALLTYPE SteamApps() {
 
     //get isteamapps
     void* S_CALLTYPE (*real)();
-    *(void**)(&real) = real_dlsym(RTLD_NEXT, "SteamApps");
+    *(void**)(&real) = eu4dlc::original_symbol("SteamApps");
+    if (!real) return nullptr;
     ISteamApps* val = (ISteamApps*)real();
     //return val;
     return Hookey_SteamApps(val);
@@ -551,7 +555,8 @@ extern "C" ISteamUser *S_CALLTYPE SteamUser() {
 
     //get isteamuser 
     void* S_CALLTYPE (*real)();
-    *(void**)(&real) = real_dlsym(RTLD_NEXT, "SteamUser");
+    *(void**)(&real) = eu4dlc::original_symbol("SteamUser");
+    if (!real) return nullptr;
     ISteamUser* val = (ISteamUser*)real();
     //return val;
     return Hookey_SteamUser(val);
@@ -595,9 +600,8 @@ extern "C" bool SteamAPI_Init()
     // spdlog::default_logger().get()->sinks().push_back(logger);
 
     std::call_once(config_once, [] {
-        const auto env = std::getenv("CREAM_CONFIG_PATH");
-        const std::string path = env && *env ? env : "cream_api.ini";
         try {
+            const auto path = eu4dlc::config_path();
             auto config = eu4dlc::read_config(path);
             ini = std::move(config.ini);
             dlcs = std::move(config.dlcs);
@@ -614,7 +618,7 @@ extern "C" bool SteamAPI_Init()
     // can probably be simplified but i'm no c++ expert 
     bool (*real)();
     dlerror();
-    *(void**)(&real) = real_dlsym(RTLD_NEXT, "SteamAPI_Init");
+    *(void**)(&real) = eu4dlc::original_symbol("SteamAPI_Init");
     char* errstr = dlerror();
     if (errstr != NULL || real == nullptr) {
         spdlog::error("SteamAPI_Init failed; A dynamic linking error occurred: {0}", errstr ? errstr : "symbol not found");

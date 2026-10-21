@@ -10,7 +10,8 @@ permissions:
 
 jobs:
   linux:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
+    container: registry.gitlab.steamos.cloud/steamrt/sniper/sdk:3.0.20261007.263965
     steps:
       - uses: actions/checkout@v4
       - name: Configure
@@ -22,9 +23,38 @@ jobs:
       - name: Package
         run: cmake --install build --prefix output
       - name: Create player ZIP
-        run: python3 tools/package-player.py
+        run: |
+          python3 tools/package-player.py
+          python3 tools/package-player.py --plugin
       - uses: actions/upload-artifact@v4
         with:
           name: eu4-dlc-linux-x86_64
           path: dist/*.zip
           if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: linux
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: eu4-dlc-linux-x86_64
+          path: dist
+      - name: Validate version and publish Augustus plugin
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version=$(sed -n 's/^project(EU4DlcLinux VERSION \([0-9.]*\) .*/\1/p' CMakeLists.txt)
+          test "$RELEASE_TAG" = "v$version"
+          cd dist
+          archive="EU4DlcLinux-Augustus-$RELEASE_TAG.zip"
+          mv EU4DlcLinux-Augustus.zip "$archive"
+          sha256sum "$archive" > SHA256SUMS.txt
+          gh release create "$RELEASE_TAG" "$archive" SHA256SUMS.txt --verify-tag --latest \
+            --title "EU4DlcLinux $RELEASE_TAG" \
+            --notes '适用于 EU4 原生 Linux x86_64，使用 Steam Linux Runtime 3.0 (sniper)。解压到游戏根目录，通过 Augustus-Launcher 加载 plugin/lib64Creamlinux.so。需要游戏自带的原版 Steam 库和实际 DLC 资源。'

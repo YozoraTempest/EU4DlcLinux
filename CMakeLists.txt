@@ -7,7 +7,7 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8
 endif()
 
 find_package(Threads REQUIRED)
-add_library(Creamlinux SHARED main.cpp)
+add_library(Creamlinux SHARED main.cpp src/runtime.cpp)
 target_compile_features(Creamlinux PRIVATE cxx_std_14)
 target_include_directories(Creamlinux PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(Creamlinux PRIVATE ${CMAKE_DL_LIBS} Threads::Threads)
@@ -42,4 +42,22 @@ if(BUILD_TESTING)
     set_tests_properties(missing_config PROPERTIES ENVIRONMENT
         "LD_PRELOAD=$<TARGET_FILE:Creamlinux>;CREAM_CONFIG_PATH=${CMAKE_CURRENT_BINARY_DIR}/missing.ini")
     add_test(NAME launcher COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/tests/launcher_tests.sh")
+
+    add_library(mock_overlay SHARED tests/mock_overlay.cpp)
+    target_link_libraries(mock_overlay PRIVATE ${CMAKE_DL_LIBS})
+    add_executable(loader_tests tests/loader_tests.cpp)
+    target_link_libraries(loader_tests PRIVATE ${CMAKE_DL_LIBS})
+    add_test(NAME preload_order COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/tests/preload_order_tests.sh"
+        "${CMAKE_CURRENT_SOURCE_DIR}/package/cream.sh" "$<TARGET_FILE:Creamlinux>"
+        "$<TARGET_FILE:mock_steam>" "$<TARGET_FILE:mock_overlay>" "$<TARGET_FILE:loader_tests>")
+    set_tests_properties(preload_order PROPERTIES TIMEOUT 20)
+
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_executable(plugin_fixture tests/plugin_fixture.cpp)
+    target_include_directories(plugin_fixture PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(plugin_fixture PRIVATE ${CMAKE_DL_LIBS})
+    add_test(NAME plugin_package COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/plugin_package_tests.py"
+        "$<TARGET_FILE:Creamlinux>" "$<TARGET_FILE:mock_steam>"
+        "$<TARGET_FILE:plugin_fixture>" "${CMAKE_CURRENT_SOURCE_DIR}/package/cream_api.ini")
 endif()

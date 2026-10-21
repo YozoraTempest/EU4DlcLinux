@@ -6,6 +6,8 @@
 
 ## 玩家版
 
+使用 Augustus-Launcher 时，选择 `dist/EU4DlcLinux-Augustus.zip`，解压到游戏根目录即可。插件与配置分别位于 `plugin/lib64Creamlinux.so` 和 `plugin/creamlinux/cream_api.ini`；无需运行 `cream.sh`，插件自行定位配置并加载游戏自带的原版 Steam 库。已有构建时，运行 `python3 tools/package-player.py --plugin` 生成此包，操作见 [插件说明](package/插件使用说明.txt)。原有脚本入口继续保留。
+
 玩家版压缩包为 `dist/EU4-1.37-Linux-玩家版.zip`，内含三个运行文件、简短的中文使用说明和合并的开源许可。解压后按 `使用说明.txt` 操作即可。
 
 已有 Linux 构建产物时，可用 Python 3 生成玩家包：
@@ -44,7 +46,7 @@ ctest --test-dir build --output-on-failure
 cmake --install build --prefix "$PWD/output"
 ```
 
-已有 Docker 时可运行 `docker compose run --rm creamlinux-build`。CI 配置会在 Ubuntu 22.04 上构建、测试并上传构建产物；本地建仓尚未触发远程 CI。
+已有 Docker 时可运行 `docker compose run --rm creamlinux-build`。Docker 和 CI 构建使用 Valve 官方 Sniper SDK `3.0.20261007.263965`，对应 Steam Linux Runtime 3.0 (sniper)，运行库由 Runtime 提供。
 
 ## 安装与运行
 

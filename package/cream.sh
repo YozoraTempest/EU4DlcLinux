@@ -43,7 +43,9 @@ trap 'exit 143' TERM
 cp -- "$library" "$runtime/lib64Creamlinux.so"
 cp -- "$steam_api" "$runtime/libsteam_api.so"
 export CREAM_CONFIG_PATH="$config"
-preload="$runtime/lib64Creamlinux.so:$runtime/libsteam_api.so${LD_PRELOAD:+:$LD_PRELOAD}"
+# Steam's overlay uses RTLD_NEXT when resolving its loader hooks. It must
+# precede our dlsym hook so its lookup cannot resolve back to the overlay.
+preload="${LD_PRELOAD:+$LD_PRELOAD:}$runtime/lib64Creamlinux.so:$runtime/libsteam_api.so"
 set +e
 LD_PRELOAD="$preload" "$@"
 status=$?

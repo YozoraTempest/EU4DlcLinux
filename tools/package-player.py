@@ -12,8 +12,11 @@ def main():
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=root / "output")
-    parser.add_argument("--output", type=Path, default=root / "dist" / "EU4-1.37-Linux-玩家版.zip")
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--plugin", action="store_true", help="Create the drop-in Augustus plugin package")
     args = parser.parse_args()
+    if args.output is None:
+        args.output = root / "dist" / ("EU4DlcLinux-Augustus.zip" if args.plugin else "EU4-1.37-Linux-玩家版.zip")
 
     library = (args.input / "lib64Creamlinux.so").read_bytes()
     if len(library) < 64 or library[:6] != b"\x7fELF\x02\x01" or struct.unpack_from("<H", library, 18)[0] != 62:
@@ -38,6 +41,13 @@ def main():
         "使用说明.txt": (root / "package" / "使用说明.txt").read_bytes(),
         "开源许可.txt": license_text.encode("utf-8"),
     }
+    if args.plugin:
+        files = {
+            "plugin/lib64Creamlinux.so": library,
+            "plugin/creamlinux/cream_api.ini": (root / "package" / "cream_api.ini").read_bytes(),
+            "plugin/creamlinux/使用说明.txt": (root / "package" / "插件使用说明.txt").read_bytes(),
+            "plugin/creamlinux/LICENSE": license_text.encode("utf-8"),
+        }
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(args.output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
